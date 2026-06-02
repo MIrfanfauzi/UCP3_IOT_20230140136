@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>IoT Sensor Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: #ffffff;
+            color: #222;
+            padding: 32px 24px;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #111;
+            margin-bottom: 4px;
+        }
+
+        .subtitle {
+            font-size: 0.85rem;
+            color: #888;
+            margin-bottom: 24px;
+        }
+
+        .btn-refresh {
+            display: inline-block;
+            margin-bottom: 24px;
+            padding: 7px 18px;
+            background: #111;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: background 0.2s;
+        }
+
+        .btn-refresh:hover {
+            background: #444;
+        }
+
+        .error {
+            border: 1px solid #f5c6cb;
+            background: #fff5f5;
+            color: #c0392b;
+            padding: 10px 14px;
+            border-radius: 5px;
+            font-size: 0.85rem;
+            margin-bottom: 20px;
+            max-width: 900px;
+        }
+
+        .info-card {
+            border: 1px solid #e5e5e5;
+            border-radius: 8px;
+            padding: 16px 22px;
+            background: #fafafa;
+            max-width: 900px;
+            margin-bottom: 28px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px 24px;
+        }
+
+        .info-item .info-label {
+            font-size: 0.72rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #999;
+            margin-bottom: 2px;
+        }
+
+        .info-item .info-value {
+            font-size: 0.9rem;
+            color: #222;
+            font-weight: 500;
+        }
+
+        .charts-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 32px;
+            max-width: 900px;
+        }
+
+        .chart-card {
+            border: 1px solid #e5e5e5;
+            border-radius: 8px;
+            padding: 20px 22px;
+            background: #fff;
+        }
+
+        .chart-card h2 {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 14px;
+            border-bottom: 1px solid #f0f0f0;
+            padding-bottom: 10px;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 280px;
+        }
+
+        footer {
+            margin-top: 36px;
+            font-size: 0.75rem;
+            color: #bbb;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>IoT Sensor Dashboard</h1>
+    <p class="subtitle">Temperature · Humidity · Pressure — 2 Location Comparison</p>
+
+    <div id="error-box" class="error" style="display:none;"></div>
+
+    <div class="info-card" id="info-card" style="display:none;">
+        <div class="info-item">
+            <div class="info-label">Year</div>
+            <div class="info-value" id="info-year">—</div>
+        </div>
+        <div class="info-item">
+            <div class="info-label">Institute</div>
+            <div class="info-value" id="info-institute">—</div>
+        </div>
+        <div class="info-item">
+            <div class="info-label">Faculty</div>
+            <div class="info-value" id="info-faculty">—</div>
+        </div>
+        <div class="info-item">
+            <div class="info-label">Major</div>
+            <div class="info-value" id="info-major">—</div>
+        </div>
+    </div>
+
+    <button class="btn-refresh" onclick="loadData()">&#8635; Refresh</button>
+
+    <div class="charts-wrapper">
+
+        <div class="chart-card">
+            <h2>🌡️ Temperature (°C)</h2>
+            <div class="chart-container">
+                <canvas id="chart-temperature"></canvas>
+            </div>
+        </div>
+
+        <div class="chart-card">
+            <h2>💧 Humidity (%)</h2>
+            <div class="chart-container">
+                <canvas id="chart-humidity"></canvas>
+            </div>
+        </div>
+
+        <div class="chart-card">
+            <h2>🌬️ Pressure (hPa)</h2>
+            <div class="chart-container">
+                <canvas id="chart-pressure"></canvas>
+            </div>
+        </div>
+
+    </div>
+
+
+    <script>
+        let chartTemp = null, chartHum = null, chartPres = null;
+
+        async function loadData() {
+            const errorBox = document.getElementById('error-box');
+            errorBox.style.display = 'none';
+
+            try {
+                
+                const res = await fetch('data.php');
+                if (!res.ok) throw new Error('HTTP ' + res.status + ' saat mengambil data.php');
+
+                const json = await res.json();
+                if (json.error) throw new Error(json.error);
+
+                
+                const report = json.datasensorreport[0];
+                document.getElementById('info-year').textContent = json.year || '—';
+                document.getElementById('info-institute').textContent = report.institute || '—';
+                document.getElementById('info-faculty').textContent = report.faculty || '—';
+                document.getElementById('info-major').textContent = report.major || '—';
+                document.getElementById('info-card').style.display = 'grid';
+
+                const sensordata = report.sensordata;
+
+                const loc1 = sensordata.filter(r => String(r.sensor_id) === '1');
+                const loc2 = sensordata.filter(r => String(r.sensor_id) === '2');
+
+                const labels = loc1.map(r => r.timestamp.split('T')[0]);
+
+                const t1 = loc1.map(r => parseFloat(r.temperature));
+                const t2 = loc2.map(r => parseFloat(r.temperature));
+                const h1 = loc1.map(r => parseFloat(r.humidity));
+                const h2 = loc2.map(r => parseFloat(r.humidity));
+                const p1 = loc1.map(r => parseFloat(r.pressure));
+                const p2 = loc2.map(r => parseFloat(r.pressure));
+
+                const base = {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { labels: { color: '#333', font: { size: 12 } } }
+                    },
+                    scales: {
+                        x: { ticks: { color: '#666', font: { size: 11 } }, grid: { color: '#f2f2f2' } },
+                        y: { ticks: { color: '#666', font: { size: 11 } }, grid: { color: '#f2f2f2' } }
+                    }
+                };
+
+                if (chartTemp) chartTemp.destroy();
+                if (chartHum) chartHum.destroy();
+                if (chartPres) chartPres.destroy();
+                chartTemp = new Chart(
+                    document.getElementById('chart-temperature'), {
+                    type: 'line',
+                    data: {
+                        labels,
+                        datasets: [
+                            { label: 'Location 1 (Sensor ID 1)', data: t1, borderColor: '#e74c3c', backgroundColor: 'rgba(231,76,60,0.07)', borderWidth: 2, pointRadius: 4, tension: 0.3, fill: true },
+                            { label: 'Location 2 (Sensor ID 2)', data: t2, borderColor: '#e67e22', backgroundColor: 'rgba(230,126,34,0.07)', borderWidth: 2, pointRadius: 4, tension: 0.3, fill: true }
+                        ]
+                    },
+                    options: base
+                });
+
+                chartHum = new Chart(
+                    document.getElementById('chart-humidity'), {
+                    type: 'line',
+                    data: {
+                        labels,
+                        datasets: [
+                            { label: 'Location 1 (Sensor ID 1)', data: h1, borderColor: '#2980b9', backgroundColor: 'rgba(41,128,185,0.07)', borderWidth: 2, pointRadius: 4, tension: 0.3, fill: true },
+                            { label: 'Location 2 (Sensor ID 2)', data: h2, borderColor: '#27ae60', backgroundColor: 'rgba(39,174,96,0.07)', borderWidth: 2, pointRadius: 4, tension: 0.3, fill: true }
+                        ]
+                    },
+                    options: base
+                });
+
+                chartPres = new Chart(
+                    document.getElementById('chart-pressure'), {
+                    type: 'line',
+                    data: {
+                        labels,
+                        datasets: [
+                            { label: 'Location 1 (Sensor ID 1)', data: p1, borderColor: '#8e44ad', backgroundColor: 'rgba(142,68,173,0.07)', borderWidth: 2, pointRadius: 4, tension: 0.3, fill: true },
+                            { label: 'Location 2 (Sensor ID 2)', data: p2, borderColor: '#16a085', backgroundColor: 'rgba(22,160,133,0.07)', borderWidth: 2, pointRadius: 4, tension: 0.3, fill: true }
+                        ]
+                    },
+                    options: base
+                });
+
+            } catch (err) {
+                errorBox.style.display = 'block';
+                errorBox.textContent = 'Error: ' + err.message;
+                console.error(err);
+            }
+        }
+
+        loadData();
+    </script>
+
+</body>
+
+</html>
